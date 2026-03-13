@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { Camera, CheckCircle, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Camera, CheckCircle, AlertCircle } from 'lucide-react';
 import { savePatient } from '../utils/localStorage';
 import { useAuth } from '../context/AuthContext';
 import { compressImage } from '../utils/imageCompression';
+import CameraCapture from '../components/CameraCapture';
 
 const Screening = () => {
   const [step, setStep] = useState(1);
   const [photos, setPhotos] = useState({ left: null, right: null });
+  const [activeCamera, setActiveCamera] = useState(null); // 'left' or 'right'
   const [formData, setFormData] = useState({
     name: '', age: '', gender: '', phone: '', symptom: '', location: ''
   });
@@ -116,8 +118,17 @@ const Screening = () => {
                 <div key={eye} style={{ border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)', padding: '16px', textAlign: 'center', background: photos[eye] ? 'transparent' : 'var(--bg-main)' }}>
                   <p className="font-medium" style={{ marginBottom: '12px', textTransform: 'capitalize' }}>{eye} Eye</p>
                   
-                  {photos[eye] ? (
-                    <div style={{ position: 'relative', borderRadius: 'var(--radius-md)', overflow: 'hidden', height: '140px' }}>
+                  {activeCamera === eye ? (
+                    <CameraCapture 
+                      eye={eye}
+                      onCapture={(dataUrl) => {
+                        setPhotos(prev => ({ ...prev, [eye]: dataUrl }));
+                        setActiveCamera(null);
+                      }}
+                      onCancel={() => setActiveCamera(null)}
+                    />
+                  ) : photos[eye] ? (
+                    <div style={{ position: 'relative', borderRadius: 'var(--radius-md)', overflow: 'hidden', height: '180px' }}>
                       <img src={photos[eye]} alt={`${eye} eye`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       <button 
                         onClick={() => setPhotos({ ...photos, [eye]: null })}
@@ -126,19 +137,34 @@ const Screening = () => {
                       </button>
                     </div>
                   ) : (
-                    <label style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Camera size={24} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <button 
+                        className="btn btn-outline" 
+                        onClick={() => setActiveCamera(eye)}
+                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '24px' }}
+                      >
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Camera size={24} />
+                        </div>
+                        <span className="text-sm font-medium">Open Camera</span>
+                      </button>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ flex: 1, height: '1px', background: 'var(--border)' }}></div>
+                        <span className="text-xs text-muted">OR</span>
+                        <div style={{ flex: 1, height: '1px', background: 'var(--border)' }}></div>
                       </div>
-                      <span className="text-sm font-medium text-primary">Capture Image</span>
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        capture="environment" 
-                        onChange={(e) => handlePhotoUpload(e, eye)} 
-                        style={{ display: 'none' }} 
-                      />
-                    </label>
+
+                      <label style={{ cursor: 'pointer', textAlign: 'center' }}>
+                        <span className="text-sm font-medium text-primary">Upload existing photo</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          onChange={(e) => handlePhotoUpload(e, eye)} 
+                          style={{ display: 'none' }} 
+                        />
+                      </label>
+                    </div>
                   )}
                 </div>
               ))}
