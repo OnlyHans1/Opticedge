@@ -4,22 +4,30 @@ import { useAuth } from '../context/AuthContext';
 import { Activity, Shield, User } from 'lucide-react';
 
 const Login = () => {
-  const [role, setRole] = useState('patient');
+  const [role, setRole] = useState('worker');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
-    const success = login(role, username, password);
-    if (success) {
-      navigate('/dashboard');
-    } else {
-      setError('Invalid credentials. Admin: admin/admin, Patient: [any name]/password');
+    setIsLoading(true);
+
+    try {
+      const result = await login(username, password);
+      if (result.success) {
+        navigate('/dashboard');
+      } else {
+        setError(result.message || 'Invalid credentials.');
+      }
+    } catch (err) {
+      setError('Connection error. Is the backend running?');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -31,8 +39,8 @@ const Login = () => {
             <Activity size={48} />
           </div>
         </div>
-        <h1 className="text-title" style={{ color: 'white', fontSize: '2.5rem' }}>Visilant</h1>
-        <p style={{ opacity: 0.9 }}>Eye care anywhere.</p>
+        <h1 className="text-title" style={{ color: 'white', fontSize: '2.5rem' }}>OpticEdge</h1>
+        <p style={{ opacity: 0.9 }}>AI-Assisted Eye Screening Platform</p>
       </div>
 
       <div className="card" style={{ color: 'var(--text-main)' }}>
@@ -41,19 +49,19 @@ const Login = () => {
         <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
           <button 
             type="button"
-            onClick={() => setRole('patient')}
-            className={`btn ${role === 'patient' ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setRole('worker')}
+            className={`btn ${role === 'worker' ? 'btn-primary' : 'btn-outline'}`}
             style={{ flex: 1 }}
           >
-            <User size={18} /> Patient
+            <User size={18} /> Kader
           </button>
           <button 
             type="button"
-            onClick={() => setRole('admin')}
-            className={`btn ${role === 'admin' ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setRole('doctor')}
+            className={`btn ${role === 'doctor' ? 'btn-primary' : 'btn-outline'}`}
             style={{ flex: 1 }}
           >
-            <Shield size={18} /> Admin
+            <Shield size={18} /> Dokter
           </button>
         </div>
 
@@ -71,6 +79,7 @@ const Login = () => {
               className="form-control" 
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              placeholder={role === 'worker' ? 'e.g. kader_ahmad' : 'e.g. dr_ratna'}
               required 
             />
           </div>
@@ -83,15 +92,19 @@ const Login = () => {
               onChange={(e) => setPassword(e.target.value)}
               required 
             />
-            {role === 'patient' && (
-              <p className="text-xs text-muted" style={{ marginTop: '4px' }}>Hint: Use 'password' for any username.</p>
-            )}
-            {role === 'admin' && (
-              <p className="text-xs text-muted" style={{ marginTop: '4px' }}>Hint: Use 'admin' / 'admin'.</p>
-            )}
+            <p className="text-xs text-muted" style={{ marginTop: '4px' }}>
+              {role === 'worker' 
+                ? 'Demo: kader_ahmad / password123' 
+                : 'Demo: dr_ratna / password123'}
+            </p>
           </div>
-          <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>
-            Sign In
+          <button 
+            type="submit" 
+            className="btn btn-primary" 
+            style={{ marginTop: '8px' }}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
       </div>

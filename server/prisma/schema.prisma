@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  worker
+  doctor
+}
+
+enum SyncStatus {
+  pending
+  synced
+}
+
+enum DocValidation {
+  pending
+  approved
+  revised
+}
+
+model User {
+  id            String   @id @default(uuid())
+  name          String
+  username      String   @unique
+  password_hash String
+  role          Role
+  location      String
+
+  screeningsAsWorker Screening[] @relation("WorkerScreenings")
+  screeningsAsDoctor Screening[] @relation("DoctorScreenings")
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Patient {
+  id        String   @id @default(uuid())
+  nik       String
+  name      String
+  age       Int
+  wa_number String
+
+  screenings Screening[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("patients")
+}
+
+model Screening {
+  id             String        @id @default(uuid())
+  patient_id     String
+  worker_id      String
+  doctor_id      String?
+  eye_image_url  String        @db.LongText
+  ai_prediction  String
+  ai_confidence  Float
+  sync_status    SyncStatus    @default(pending)
+  doc_validation DocValidation @default(pending)
+  doctor_notes   String?       @db.Text
+  created_at     DateTime      @default(now())
+  reviewed_at    DateTime?
+
+  patient Patient @relation(fields: [patient_id], references: [id])
+  worker  User    @relation("WorkerScreenings", fields: [worker_id], references: [id])
+  doctor  User?   @relation("DoctorScreenings", fields: [doctor_id], references: [id])
+
+  @@index([patient_id])
+  @@index([worker_id])
+  @@index([doctor_id])
+  @@index([doc_validation])
+  @@index([ai_confidence])
+  @@map("screenings")
+}

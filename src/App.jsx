@@ -1,13 +1,12 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { initMockData } from './utils/localStorage';
 import Header from './components/Header';
 import Navigation from './components/Navigation';
 import Dashboard from './pages/Dashboard';
 import Screening from './pages/Screening';
+import ScreeningResult from './pages/Screening/ScreeningResult';
 import PatientList from './pages/PatientList';
 import Login from './pages/Login';
-import { useEffect } from 'react';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user } = useAuth();
@@ -41,8 +40,13 @@ const AppLayout = () => {
             </ProtectedRoute>
           } />
           <Route path="/screening" element={
-            <ProtectedRoute allowedRoles={['admin', 'patient']}>
+            <ProtectedRoute allowedRoles={['worker']}>
               <Screening />
+            </ProtectedRoute>
+          } />
+          <Route path="/screening/result" element={
+            <ProtectedRoute allowedRoles={['worker']}>
+              <ScreeningResult />
             </ProtectedRoute>
           } />
           <Route path="/patients" element={
@@ -58,10 +62,6 @@ const AppLayout = () => {
 };
 
 function App() {
-  useEffect(() => {
-    initMockData();
-  }, []);
-
   return (
     <AuthProvider>
       <Router>

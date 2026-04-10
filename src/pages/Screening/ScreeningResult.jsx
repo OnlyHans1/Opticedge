@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { analyzeImage, parseAIResponse } from '../../config/ai';
 import { eyeScanPrompt } from './EyeScanPrompt';
+import { apiCreateScreening } from '../../utils/api';
 
 // Demo/fallback data when no API key is set
 const DEMO_RESULT = {
@@ -53,6 +54,7 @@ const ScreeningResult = () => {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [analyzedEye, setAnalyzedEye] = useState('left');
+  const [savedScreening, setSavedScreening] = useState(null);
 
   useEffect(() => {
     if (!photos || (!photos.left && !photos.right)) {
@@ -70,26 +72,47 @@ const ScreeningResult = () => {
     const imageToAnalyze = photos.left || photos.right;
     setAnalyzedEye(photos.left ? 'left' : 'right');
 
+    let aiResult = null;
+
     try {
       const rawResponse = await analyzeImage(imageToAnalyze, eyeScanPrompt);
       const parsed = parseAIResponse(rawResponse);
+      aiResult = parsed;
       setResult(parsed);
     } catch (err) {
       console.error('AI Analysis error:', err);
       if (err.message === 'NO_API_KEY') {
         // Use demo data when no API key
         console.log('No API key found, using demo data');
-        // Simulate loading delay
         await new Promise(r => setTimeout(r, 2000));
+        aiResult = DEMO_RESULT;
         setResult(DEMO_RESULT);
       } else {
         setError(err.message || 'Failed to analyze image');
-        // Fallback to demo after error
         await new Promise(r => setTimeout(r, 1500));
+        aiResult = DEMO_RESULT;
         setResult(DEMO_RESULT);
       }
     } finally {
       setIsLoading(false);
+    }
+
+    // Save screening to backend API after AI analysis
+    if (aiResult && patient?.id) {
+      try {
+        const screening = await apiCreateScreening({
+          patient_id: patient.id,
+          eye_image_url: imageToAnalyze,
+          ai_prediction: aiResult.condition || 'Unknown',
+          ai_confidence: (aiResult.confidence || 50) / 100, // Convert from 0-100 to 0-1
+          sync_status: 'synced',
+        });
+        setSavedScreening(screening);
+        console.log('Screening saved to backend:', screening.id);
+      } catch (saveErr) {
+        console.error('Failed to save screening to backend:', saveErr);
+        // Don't block the UI — the result is still shown
+      }
     }
   };
 
@@ -167,7 +190,10 @@ const ScreeningResult = () => {
         </button>
         <div>
           <h2 className="text-title" style={{ fontSize: '1.25rem', marginBottom: '2px' }}>Screening Result</h2>
-          <span className="text-muted text-xs">AI Eye Analysis</span>
+          <span className="text-muted text-xs">
+            AI Eye Analysis
+            {savedScreening && ' • Saved ✓'}
+          </span>
         </div>
       </div>
 
@@ -205,11 +231,16 @@ const ScreeningResult = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
             <FileText size={16} color="var(--primary)" />
             <span className="font-medium text-sm">Patient Info</span>
+            {patient?.id && (
+              <span className="text-xs text-muted" style={{ marginLeft: 'auto' }}>
+                QR: {patient.id.substring(0, 8)}...
+              </span>
+            )}
           </div>
           <div className="result-patient-grid">
             <div><span className="text-muted text-xs">Name</span><span className="text-sm font-medium">{formData.name}</span></div>
             <div><span className="text-muted text-xs">Age</span><span className="text-sm font-medium">{formData.age}</span></div>
-            <div><span className="text-muted text-xs">Gender</span><span className="text-sm font-medium">{formData.gender}</span></div>
+            <div><span className="text-muted text-xs">NIK</span><span className="text-sm font-medium">{formData.nik}</span></div>
             <div><span className="text-muted text-xs">Symptom</span><span className="text-sm font-medium" style={{ textTransform: 'capitalize' }}>{formData.symptom}</span></div>
           </div>
         </div>
@@ -291,6 +322,16 @@ const ScreeningResult = () => {
             </span>
           </div>
           <p className="text-muted text-sm">{result.additionalNotes}</p>
+        </div>
+      )}
+
+      {/* Saved status */}
+      {savedScreening && (
+        <div style={{ background: 'var(--success-light)', padding: '12px 16px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+          <CheckCircle size={16} color="var(--success)" />
+          <span className="text-sm font-medium" style={{ color: 'var(--success)' }}>
+            Screening saved — pending doctor review
+          </span>
         </div>
       )}
 

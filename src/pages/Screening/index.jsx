@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Camera, CheckCircle, AlertCircle, SwitchCamera, Eye, RotateCcw, Check, ChevronLeft, Scan, Lightbulb } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { savePatient } from '../../utils/localStorage';
+import { apiCreatePatient } from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import useCamera from '../../hooks/useCamera';
 
@@ -11,8 +11,9 @@ const Screening = () => {
   const [currentEye, setCurrentEye] = useState('left');
   const [capturedPreview, setCapturedPreview] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
-    name: '', age: '', gender: '', symptom: '', location: ''
+    name: '', age: '', nik: '', wa_number: '', symptom: '', location: ''
   });
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -84,22 +85,33 @@ const Screening = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     if (e) e.preventDefault();
     stopCamera();
-    const patient = savePatient({
-      ...formData,
-      photos: true,
-      createdBy: user.id
-    });
-    // Navigate to result page with data
-    navigate('/screening/result', {
-      state: {
-        patient,
-        photos,
-        formData,
-      }
-    });
+    setIsSubmitting(true);
+
+    try {
+      // 1. Create patient via API
+      const patient = await apiCreatePatient({
+        nik: formData.nik,
+        name: formData.name,
+        age: parseInt(formData.age, 10),
+        wa_number: formData.wa_number,
+      });
+
+      // 2. Navigate to result page with patient + photos for AI analysis
+      navigate('/screening/result', {
+        state: {
+          patient,
+          photos,
+          formData,
+        }
+      });
+    } catch (error) {
+      console.error('Failed to create patient:', error);
+      alert(`Error: ${error.message}`);
+      setIsSubmitting(false);
+    }
   };
 
   // Camera permission denied screen
@@ -153,8 +165,12 @@ const Screening = () => {
             <h3 className="font-bold text-lg" style={{ marginBottom: '16px' }}>Patient Information</h3>
             <form onSubmit={(e) => { e.preventDefault(); handleNext(); }}>
               <div className="form-group">
+                <label className="form-label">NIK (ID Number)</label>
+                <input type="text" name="nik" className="form-control" placeholder="e.g. 3201234567890001" value={formData.nik} onChange={handleInputChange} required />
+              </div>
+              <div className="form-group">
                 <label className="form-label">Full Name</label>
-                <input type="text" name="name" className="form-control" placeholder="e.g. Kamala Devi" value={formData.name} onChange={handleInputChange} required />
+                <input type="text" name="name" className="form-control" placeholder="e.g. Siti Aminah" value={formData.name} onChange={handleInputChange} required />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div className="form-group">
@@ -162,13 +178,8 @@ const Screening = () => {
                   <input type="number" name="age" className="form-control" value={formData.age} onChange={handleInputChange} required />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Gender</label>
-                  <select name="gender" className="form-control" value={formData.gender} onChange={handleInputChange} required>
-                    <option value="">Select</option>
-                    <option value="F">Female</option>
-                    <option value="M">Male</option>
-                    <option value="O">Other</option>
-                  </select>
+                  <label className="form-label">WhatsApp</label>
+                  <input type="tel" name="wa_number" className="form-control" placeholder="081234567890" value={formData.wa_number} onChange={handleInputChange} required />
                 </div>
               </div>
               <div className="form-group">
@@ -183,7 +194,7 @@ const Screening = () => {
               </div>
               <div className="form-group">
                 <label className="form-label">Location</label>
-                <input type="text" name="location" className="form-control" defaultValue="Village Block A" value={formData.location} onChange={handleInputChange} required />
+                <input type="text" name="location" className="form-control" placeholder="e.g. Desa Mekar" value={formData.location} onChange={handleInputChange} required />
               </div>
               <button type="submit" className="btn btn-primary" style={{ marginTop: '16px' }}>
                 Next Step
@@ -363,9 +374,9 @@ const Screening = () => {
                 className="btn btn-primary"
                 onClick={handleSubmit}
                 style={{ flex: 2 }}
-                disabled={!photos.left || !photos.right}
+                disabled={!photos.left || !photos.right || isSubmitting}
               >
-                Submit for Review
+                {isSubmitting ? 'Submitting...' : 'Submit for Review'}
               </button>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { getUserByCredentials } from '../utils/localStorage';
+import { apiLogin, apiLogout, getStoredUser } from '../utils/api';
 
 const AuthContext = createContext(null);
 
@@ -9,26 +9,26 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     // Check if user is logged in on mount
-    const storedUser = localStorage.getItem('visilant_user');
+    const storedUser = getStoredUser();
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      setUser(storedUser);
     }
     setLoading(false);
   }, []);
 
-  const login = (role, username, password) => {
-    const validUser = getUserByCredentials(role, username, password);
-    if (validUser) {
-      setUser(validUser);
-      localStorage.setItem('visilant_user', JSON.stringify(validUser));
-      return true;
+  const login = async (username, password) => {
+    try {
+      const result = await apiLogin(username, password);
+      setUser(result.user);
+      return { success: true };
+    } catch (error) {
+      return { success: false, message: error.message };
     }
-    return false;
   };
 
   const logout = () => {
+    apiLogout();
     setUser(null);
-    localStorage.removeItem('visilant_user');
   };
 
   return (
