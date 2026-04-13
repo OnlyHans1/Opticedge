@@ -3,6 +3,8 @@ import { Search, Phone, MapPin, FileText, Eye, CheckCircle, Clock, Edit2 } from 
 import { apiGetScreenings, apiValidateScreening } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
 const PatientList = () => {
   const [screenings, setScreenings] = useState([]);
   const [filter, setFilter] = useState('all');
@@ -56,16 +58,32 @@ const PatientList = () => {
     return matchesFilter && matchesSearch;
   });
 
-  // Detail view
+  /**
+   * Resolve eye image URL — handles both server-hosted uploads and base64 data URIs.
+   */
+  const resolveImageUrl = (url) => {
+    if (!url) return null;
+    if (url.startsWith('data:')) return url;
+    if (url.startsWith('http')) return url;
+    // Relative path from server (e.g. /uploads/eyes/...)
+    return `${API_BASE_URL}${url}`;
+  };
+
+  // ─── Detail View ────────────────────────────────────────────
   if (selectedScreening) {
     const s = selectedScreening;
+    const imageUrl = resolveImageUrl(s.eye_image_url);
+
     return (
-      <div className="animate-fade-in pb-20">
+      <div id="screening-detail" className="animate-fade-in" style={{ paddingBottom: '80px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <button 
             onClick={() => { setSelectedScreening(null); setIsValidating(false); }}
-            className="text-primary font-medium"
-            style={{ color: 'var(--primary)' }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              color: 'var(--highlight)', fontWeight: '600', fontSize: '0.9rem',
+              cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'inherit',
+            }}
           >
             ← Back to List
           </button>
@@ -73,7 +91,7 @@ const PatientList = () => {
             <button 
               onClick={() => setIsValidating(true)}
               className="btn btn-primary" 
-              style={{ width: 'auto', padding: '8px 16px' }}
+              style={{ width: 'auto', padding: '8px 18px' }}
             >
               <Edit2 size={16} /> Validate
             </button>
@@ -84,94 +102,118 @@ const PatientList = () => {
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
             <div>
-              <h2 className="text-title">{s.patient?.name}</h2>
-              <p className="text-muted">{s.patient?.age} years old • NIK: {s.patient?.nik}</p>
+              <h2 className="text-title" style={{ fontSize: '1.3rem' }}>{s.patient?.name}</h2>
+              <p style={{ color: 'var(--paragraph)', fontSize: '0.85rem' }}>
+                {s.patient?.age} years old • NIK: {s.patient?.nik}
+              </p>
             </div>
-            <span className={`badge ${s.doc_validation === 'pending' ? 'pending' : s.doc_validation === 'approved' ? 'reviewed' : 'urgent'}`}>
+            <span className={`badge ${s.doc_validation === 'pending' ? 'pending' : s.doc_validation === 'approved' ? 'approved' : 'revised'}`}>
               {s.doc_validation}
             </span>
           </div>
 
           <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
-            <div className="btn btn-outline" style={{ padding: '8px 12px', fontSize: '0.875rem', flex: 1, cursor: 'default' }}>
-              <Phone size={16} /> {s.patient?.wa_number || 'N/A'}
+            <div className="btn btn-outline" style={{ padding: '8px 12px', fontSize: '0.8rem', flex: 1, cursor: 'default' }}>
+              <Phone size={14} /> {s.patient?.wa_number || 'N/A'}
             </div>
             {s.worker && (
-              <div className="btn btn-outline" style={{ padding: '8px 12px', fontSize: '0.875rem', flex: 1, cursor: 'default' }}>
-                <MapPin size={16} /> {s.worker?.location || 'N/A'}
+              <div className="btn btn-outline" style={{ padding: '8px 12px', fontSize: '0.8rem', flex: 1, cursor: 'default' }}>
+                <MapPin size={14} /> {s.worker?.location || 'N/A'}
               </div>
             )}
           </div>
 
           {/* AI Analysis */}
           <div style={{ marginBottom: '24px' }}>
-            <h3 className="font-bold border-b pb-2 mb-2" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '8px', marginBottom: '12px' }}>
-              🤖 AI Analysis
+            <h3 style={{
+              fontWeight: '700', fontSize: '0.95rem', color: 'var(--headline)',
+              borderBottom: '1px solid rgba(144, 180, 206, 0.2)',
+              paddingBottom: '10px', marginBottom: '14px',
+              display: 'flex', alignItems: 'center', gap: '8px',
+            }}>
+              <span style={{ fontSize: '1.1rem' }}>🤖</span> AI Analysis
             </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '8px', fontSize: '0.875rem' }}>
-              <span className="text-muted">Prediction:</span>
-              <span className="font-medium">{s.ai_prediction}</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '10px', fontSize: '0.85rem' }}>
+              <span style={{ color: 'var(--paragraph)' }}>Prediction:</span>
+              <span style={{ fontWeight: '600', color: 'var(--headline)' }}>{s.ai_prediction}</span>
               
-              <span className="text-muted">Confidence:</span>
-              <span className="font-medium">
-                <span style={{ 
-                  color: s.ai_confidence >= 0.8 ? 'var(--danger)' : s.ai_confidence >= 0.6 ? 'var(--warning)' : 'var(--success)',
-                  fontWeight: '600'
-                }}>
-                  {Math.round(s.ai_confidence * 100)}%
-                </span>
+              <span style={{ color: 'var(--paragraph)' }}>Confidence:</span>
+              <span style={{ 
+                fontWeight: '700',
+                color: s.ai_confidence >= 0.8 ? 'var(--danger)' : s.ai_confidence >= 0.6 ? 'var(--warning)' : 'var(--success)',
+              }}>
+                {Math.round(s.ai_confidence * 100)}%
               </span>
 
-              <span className="text-muted">Date:</span>
-              <span className="font-medium">{new Date(s.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+              <span style={{ color: 'var(--paragraph)' }}>Date:</span>
+              <span style={{ fontWeight: '500', color: 'var(--headline)' }}>
+                {new Date(s.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </span>
 
-              <span className="text-muted">Worker:</span>
-              <span className="font-medium">{s.worker?.name || 'N/A'}</span>
+              <span style={{ color: 'var(--paragraph)' }}>Worker:</span>
+              <span style={{ fontWeight: '500', color: 'var(--headline)' }}>{s.worker?.name || 'N/A'}</span>
 
               {s.doctor && (
                 <>
-                  <span className="text-muted">Doctor:</span>
-                  <span className="font-medium">{s.doctor?.name}</span>
+                  <span style={{ color: 'var(--paragraph)' }}>Doctor:</span>
+                  <span style={{ fontWeight: '500', color: 'var(--headline)' }}>{s.doctor?.name}</span>
                 </>
               )}
 
               {s.reviewed_at && (
                 <>
-                  <span className="text-muted">Reviewed:</span>
-                  <span className="font-medium">{new Date(s.reviewed_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                  <span style={{ color: 'var(--paragraph)' }}>Reviewed:</span>
+                  <span style={{ fontWeight: '500', color: 'var(--headline)' }}>
+                    {new Date(s.reviewed_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </span>
                 </>
               )}
             </div>
           </div>
 
           {/* Eye Image */}
-          {s.eye_image_url && s.eye_image_url.startsWith('data:') && (
+          {imageUrl && (
             <div style={{ marginBottom: '24px' }}>
-              <h3 className="font-bold border-b pb-2 mb-3" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>Eye Image</h3>
+              <h3 style={{
+                fontWeight: '700', fontSize: '0.95rem', color: 'var(--headline)',
+                borderBottom: '1px solid rgba(144, 180, 206, 0.2)',
+                paddingBottom: '10px', marginBottom: '14px',
+              }}>Eye Image</h3>
               <div 
-                style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', cursor: 'zoom-in', height: '200px', border: '1px solid var(--border)' }}
-                onClick={() => setZoomedImage(s.eye_image_url)}
+                style={{
+                  borderRadius: 'var(--radius-lg)', overflow: 'hidden',
+                  cursor: 'zoom-in', height: '200px',
+                  border: '1px solid rgba(144, 180, 206, 0.2)',
+                }}
+                onClick={() => setZoomedImage(imageUrl)}
               >
-                <img src={s.eye_image_url} alt="Eye scan" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={imageUrl} alt="Eye scan" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
             </div>
           )}
 
           {/* Doctor Notes */}
           {s.doctor_notes && (
-            <div style={{ background: 'var(--primary-light)', padding: '16px', borderRadius: 'var(--radius-md)', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', gap: '8px', color: 'var(--primary-dark)', marginBottom: '8px', fontWeight: '600' }}>
-                <FileText size={20} />
+            <div style={{
+              background: 'rgba(61, 169, 252, 0.06)', padding: '16px',
+              borderRadius: 'var(--radius-md)', marginBottom: '16px',
+              border: '1px solid rgba(61, 169, 252, 0.1)',
+            }}>
+              <div style={{ display: 'flex', gap: '8px', color: 'var(--headline)', marginBottom: '8px', fontWeight: '700', fontSize: '0.9rem' }}>
+                <FileText size={18} />
                 <span>Doctor's Notes</span>
               </div>
-              <p className="text-sm">{s.doctor_notes}</p>
+              <p style={{ fontSize: '0.85rem', color: 'var(--paragraph)', lineHeight: '1.6' }}>{s.doctor_notes}</p>
             </div>
           )}
 
           {/* Pending Review Notice */}
           {s.doc_validation === 'pending' && user.role !== 'doctor' && (
-            <div style={{ background: 'var(--warning-light)', padding: '16px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
-              <p className="text-sm font-medium" style={{ color: 'var(--warning)' }}>
+            <div style={{
+              background: 'var(--warning-light)', padding: '16px',
+              borderRadius: 'var(--radius-md)', textAlign: 'center',
+            }}>
+              <p style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--warning)' }}>
                 A specialist is currently reviewing the images. Please wait for the final diagnosis.
               </p>
             </div>
@@ -179,8 +221,11 @@ const PatientList = () => {
 
           {/* Doctor Validation Form */}
           {isValidating && (
-            <div style={{ background: 'var(--bg-main)', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-              <h4 className="font-bold mb-3">Validate Screening</h4>
+            <div style={{
+              background: 'rgba(61, 169, 252, 0.04)', padding: '20px',
+              borderRadius: 'var(--radius-lg)', border: '1.5px solid rgba(61, 169, 252, 0.15)',
+            }}>
+              <h4 style={{ fontWeight: '700', marginBottom: '16px', color: 'var(--headline)' }}>Validate Screening</h4>
               <form onSubmit={handleValidate}>
                 <div className="form-group">
                   <label className="form-label">Decision</label>
@@ -204,7 +249,7 @@ const PatientList = () => {
                     style={{ resize: 'vertical', minHeight: '80px' }}
                   />
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '10px' }}>
                   <button type="button" className="btn btn-outline" onClick={() => setIsValidating(false)} style={{ flex: 1 }}>Cancel</button>
                   <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Submit Review</button>
                 </div>
@@ -216,12 +261,27 @@ const PatientList = () => {
         {/* Zoom Modal */}
         {zoomedImage && (
           <div 
-            style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.85)', padding: '16px' }}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 100,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(9, 64, 103, 0.9)', padding: '16px',
+              backdropFilter: 'blur(8px)',
+            }}
             onClick={() => setZoomedImage(null)}
           >
-            <img src={zoomedImage} alt="Zoomed Eye" style={{ maxWidth: '100%', maxHeight: '90vh', borderRadius: 'var(--radius-md)', objectFit: 'contain' }} />
+            <img src={zoomedImage} alt="Zoomed Eye" style={{
+              maxWidth: '100%', maxHeight: '90vh',
+              borderRadius: 'var(--radius-lg)', objectFit: 'contain',
+            }} />
             <button 
-              style={{ position: 'absolute', top: '24px', right: '24px', background: 'var(--bg-card)', color: 'var(--text-main)', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', border: 'none', cursor: 'pointer', boxShadow: 'var(--shadow-md)' }}
+              style={{
+                position: 'absolute', top: '24px', right: '24px',
+                background: 'var(--bg-card)', color: 'var(--headline)',
+                width: '40px', height: '40px', borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 'bold', border: 'none', cursor: 'pointer',
+                boxShadow: 'var(--shadow-md)', fontSize: '1.1rem',
+              }}
               onClick={(e) => { e.stopPropagation(); setZoomedImage(null); }}
             >
               ✕
@@ -232,28 +292,34 @@ const PatientList = () => {
     );
   }
 
-  // List view
+  // ─── List View ──────────────────────────────────────────────
   return (
-    <div className="patient-list">
-      <h2 className="text-title" style={{ marginBottom: '16px' }}>
+    <div id="patient-list-page" className="animate-slide-up">
+      <h2 className="text-title" style={{ marginBottom: '18px' }}>
         {user.role === 'doctor' ? 'Screening Reviews' : 'My Screenings'}
       </h2>
       
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+      {/* Search & Filter */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '18px' }}>
         <div style={{ position: 'relative', flex: 1 }}>
-          <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          <Search size={16} style={{
+            position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)',
+            color: 'var(--secondary)',
+          }} />
           <input 
+            id="search-screenings"
             type="text" 
             className="form-control" 
             placeholder="Search patient or prediction..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ paddingLeft: '36px' }}
+            style={{ paddingLeft: '40px' }}
           />
         </div>
         <select 
+          id="filter-screenings"
           className="form-control" 
-          style={{ width: 'auto' }}
+          style={{ width: 'auto', minWidth: '95px' }}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         >
@@ -265,48 +331,57 @@ const PatientList = () => {
       </div>
 
       {loading && (
-        <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
+        <div className="card" style={{ textAlign: 'center', padding: '32px', color: 'var(--paragraph)' }}>
           Loading screenings...
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {filteredScreenings.map((screening) => (
           <div 
             key={screening.id} 
             className="card" 
-            style={{ marginBottom: 0, cursor: 'pointer' }} 
+            style={{
+              marginBottom: 0, cursor: 'pointer',
+              borderLeft: `4px solid ${
+                screening.doc_validation === 'pending' ? 'var(--warning)' :
+                screening.doc_validation === 'approved' ? 'var(--success)' : 'var(--danger)'
+              }`,
+              transition: 'transform 0.15s, box-shadow 0.2s',
+            }}
             onClick={() => setSelectedScreening(screening)}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ flex: 1 }}>
-                <p className="font-bold text-lg">{screening.patient?.name}</p>
-                <div style={{ display: 'flex', gap: '8px', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', flexWrap: 'wrap' }}>
+                <p style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--headline)', marginBottom: '4px' }}>
+                  {screening.patient?.name}
+                </p>
+                <div style={{ display: 'flex', gap: '8px', fontSize: '0.75rem', color: 'var(--paragraph)', flexWrap: 'wrap' }}>
                   <span>{screening.patient?.age}y</span>
                   <span>•</span>
                   <span>{screening.ai_prediction}</span>
                   <span>•</span>
                   <span style={{ 
-                    fontWeight: '600',
-                    color: screening.ai_confidence >= 0.8 ? 'var(--danger)' : screening.ai_confidence >= 0.6 ? 'var(--warning)' : 'var(--success)' 
+                    fontWeight: '700',
+                    color: screening.ai_confidence >= 0.8 ? 'var(--danger)' : screening.ai_confidence >= 0.6 ? 'var(--warning)' : 'var(--success)',
                   }}>
                     {Math.round(screening.ai_confidence * 100)}%
                   </span>
                 </div>
                 {user.role === 'doctor' && screening.worker && (
-                  <p className="text-xs text-muted" style={{ marginTop: '2px' }}>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--secondary)', marginTop: '4px' }}>
                     📍 {screening.worker.location}
                   </p>
                 )}
               </div>
-              <span className={`badge ${screening.doc_validation === 'pending' ? 'pending' : screening.doc_validation === 'approved' ? 'reviewed' : 'urgent'}`}>
+              <span className={`badge ${screening.doc_validation === 'pending' ? 'pending' : screening.doc_validation === 'approved' ? 'approved' : 'revised'}`}>
                 {screening.doc_validation}
               </span>
             </div>
           </div>
         ))}
         {!loading && filteredScreenings.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
+          <div className="card" style={{ textAlign: 'center', padding: '32px', color: 'var(--paragraph)' }}>
             No screenings found.
           </div>
         )}

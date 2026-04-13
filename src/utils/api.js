@@ -2,9 +2,16 @@
  * OpticEdge API Client
  * Centralized API layer that communicates with the Express backend.
  * All API calls go through here — auth token is managed automatically.
+ *
+ * Backend URL dikonfigurasi lewat .env:
+ *   VITE_API_URL=http://localhost:3000
+ * Vite proxy secara otomatis meneruskan `/api/*` ke URL tersebut saat dev.
  */
 
-const API_BASE = '/api';
+// Saat dev → Vite proxy meneruskan /api/* ke VITE_API_URL
+// Saat production → ganti VITE_API_URL ke URL server production
+const API_BASE = `${import.meta.env.VITE_API_URL ?? ''}/api`;
+
 
 /**
  * Get the stored JWT token.
@@ -12,7 +19,7 @@ const API_BASE = '/api';
 const getToken = () => localStorage.getItem('opticedge_token');
 
 /**
- * Make an authenticated API request.
+ * Make an authenticated API request (JSON).
  */
 const request = async (endpoint, options = {}) => {
   const token = getToken();
@@ -27,6 +34,31 @@ const request = async (endpoint, options = {}) => {
   };
 
   const response = await fetch(`${API_BASE}${endpoint}`, config);
+  const data = await response.json();
+
+  if (!response.ok) {
+    const errorMessage = data?.error?.message || `Request failed: ${response.status}`;
+    throw new Error(errorMessage);
+  }
+
+  return data;
+};
+
+/**
+ * Make an authenticated multipart/form-data request (for file uploads).
+ * Do NOT set Content-Type — the browser will set it with the correct boundary.
+ */
+const requestMultipart = async (endpoint, formData) => {
+  const token = getToken();
+
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    method: 'POST',
+    headers: {
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+    body: formData,
+  });
+
   const data = await response.json();
 
   if (!response.ok) {
@@ -94,11 +126,23 @@ export const apiGetAllPatients = async () => {
 
 // ─── Screenings ──────────────────────────────────────────────────
 
-export const apiCreateScreening = async (screeningData) => {
-  const result = await request('/screenings', {
-    method: 'POST',
-    body: JSON.stringify(screeningData),
-  });
+/**
+ * Create a screening with a file upload (multipart/form-data).
+ * @param {Object} screeningData - { patient_id, ai_prediction, ai_confidence }
+ * @param {Blob|File} imageFile - The eye image file
+ */
+export const apiCreateScreening = async (screeningData, imageFile) => {
+  const formData = new FormData();
+  formData.append('patient_id', screeningData.patient_id);
+  formData.append('ai_prediction', screeningData.ai_prediction);
+  formData.append('ai_confidence', String(screeningData.ai_confidence));
+  formData.append('sync_status', screeningData.sync_status || 'synced');
+
+  if (imageFile) {
+    formData.append('eye_image', imageFile);
+  }
+
+  const result = await requestMultipart('/screenings', formData);
   return result.data;
 };
 

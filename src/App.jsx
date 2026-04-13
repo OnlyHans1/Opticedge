@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Header from './components/Header';
 import Navigation from './components/Navigation';
 import Dashboard from './pages/Dashboard';
-import Screening from './pages/Screening';
+import ScreeningFlow from './pages/Screening/index';
 import ScreeningResult from './pages/Screening/ScreeningResult';
 import PatientList from './pages/PatientList';
 import Login from './pages/Login';
@@ -41,7 +41,7 @@ const AppLayout = () => {
           } />
           <Route path="/screening" element={
             <ProtectedRoute allowedRoles={['worker']}>
-              <Screening />
+              <ScreeningFlow />
             </ProtectedRoute>
           } />
           <Route path="/screening/result" element={
